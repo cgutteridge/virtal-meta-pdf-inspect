@@ -1,9 +1,10 @@
 
-interface vmItem {
+export interface vmItem {
     name : string;
     properties : Record<string, string>
 }
 
+/* this class roughly parses a bibtex structure. Please be gentle! */
 
 export class BibParse {
     offset = 0;
@@ -39,7 +40,7 @@ export class BibParse {
         // consume @foo{...}
         // this is a named object with a set of it's own key value pairs.
         this.consume("@");
-        const name = this.name()
+        const name = this.term()
         this.whitespace()
         this.consume("{")
         this.whitespace()
@@ -60,7 +61,7 @@ export class BibParse {
     // foo: {bar}, baz: "boop"
     keyValueList() : Record<string,string> {
         this.whitespace()
-        let key : string = this.name()
+        let key : string = this.term()
         let val : string
         this.whitespace()
         // if the next character is } or , then this was an ID
@@ -88,7 +89,7 @@ export class BibParse {
     }
 
     string() {
-        // {} or "" or name
+        // {} or "" or term
         let s = ""
         if (this.nextChar() == "{") {
             this.consume("{")
@@ -105,16 +106,13 @@ export class BibParse {
             }
             this.consume("\"")
         } else {
-            while (!this.atEnd() && this.nextChar().match(/^[^\s,}]$/i)) {
-                s += this.nextChar();
-                this.offset++;
-            }
+            s = this.term();
         }
 
         return s
     }
 
-    name(): string {
+    term(): string {
         let name = ""
         while (!this.atEnd() && this.nextChar().match(/[^\s{},=]/i)) {
             name += this.nextChar();
