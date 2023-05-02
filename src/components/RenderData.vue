@@ -13,8 +13,8 @@
   <template v-else>
     <table>
       <tr v-for="name in Object.getOwnPropertyNames(data)" :key="name">
-        <td class="bg-blue-200 p-1 mb-1">{{ name }}</td>
-        <td class="border border-blue-200 p-1 mb-1" ><RenderData :data="data[name]"></RenderData></td>
+        <td class="border bg-blue-200 border-blue-500 p-1 mb-1">{{ name }}</td>
+        <td class="border border-blue-500 p-1 mb-1" ><RenderData :data="data[name]"></RenderData></td>
       </tr>
     </table>
   </template>

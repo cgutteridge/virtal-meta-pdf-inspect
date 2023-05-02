@@ -1,11 +1,10 @@
-
 <template>
   <div class="p-8">
     <DropZone @files-dropped="filesDropped">
       <div class="drop-zone w-screen h-screen bg-opacity-50 fixed inset-0"></div>
     </DropZone>
     <RenderData :data="metadata"></RenderData>
-    <hr >
+    <hr>
     <RenderData :data="vm"></RenderData>
   </div>
 </template>
@@ -14,13 +13,14 @@
 import DropZone from "@/components/DropZone.vue";
 import RenderData from "@/components/RenderData.vue";
 import * as PDFJS from 'pdfjs-dist';
-import { ref } from "vue";
+import {ref} from "vue";
+import {BibParse} from "@/BibParse";
 
 PDFJS.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS.version}/pdf.worker.js`;
 
-const metadata = ref({} );
-metadata.value = { "PDF Metadata Viewer": "Drop a PDF file onto this page." };
-const vm = ref({} );
+const metadata = ref({});
+metadata.value = {"PDF Metadata Viewer": "Drop a PDF file onto this page."};
+const vm = ref({});
 
 function filesDropped(files) {
   const file1 = files[0]
@@ -28,42 +28,56 @@ function filesDropped(files) {
   fileReader.onload = async function () {
     let ab = this.result;
     const pdf = await PDFJS.getDocument({data: ab}).promise
-    const pages = pdf.numPages;
-    let textLines : string[] = []
-    for( let i=1; i<=pdf.numPages; i++ ) {
+    let docText = ""
+    let lastY = null
+    for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i)
       const pageText = await page.getTextContent()
-      pageText.items.forEach( (textItem)=> {
-          textLines.push( textItem.str )
+      pageText.items.forEach((textItem) => {
+        // nb Y=0 is the bottom of the page
+        if (textItem.transform[5] != lastY) {
+          // not the same line as last time
+          docText += "\n"
+        }
+        docText += textItem.str
+        lastY = textItem.transform[5]
       })
     }
-    vm.value = getVisualMetaFromLines( textLines );
+    vm.value = getVisualMetaFromString(docText)
     metadata.value = await pdf.getMetadata()
   }
   fileReader.readAsArrayBuffer(file1);
 }
 
-function getVisualMetaFromLines(lines : string[] ) {
+function getVisualMetaFromString(fullText: string) {
 
-  let i = 0;
-  while( i<lines.length && lines[i] != "@{visual-meta-start}") {
-    i++;
+  if (!fullText.match(/@{visual-meta-start}/)) {
+    throw new Error("No VM start tag")
   }
-  if( i==lines.length ) {
-    return [ "Dang, did not find any visual meta"];
+
+  // if there's multiple occurrences, we just want the last one.
+  const splitOnStart = fullText.split("@{visual-meta-start}");
+  const lastPart = splitOnStart.pop()
+
+  if (!lastPart.match(/@{visual-meta-end}/)) {
+    throw new Error("Start tag but no end tag")
   }
-  i++; // skip the begin line
-  let vm = {lines:[]};
-  while( i<lines.length && lines[i] != "@{visual-meta-end}") {
-     vm.lines.push( lines[i] );
-     i++
-  }
-  return vm;
+  const vmTextAndJunk = lastPart.split("@{visual-meta-end}");
+  const text = vmTextAndJunk[0]
+
+  let sections = {}
+  // split into sections
+  const matches = [...text.matchAll(/@\{([a-zA-Z0-9-]+)-start\}(.*)@\{\1-end\}/gs)]
+  matches.forEach((a_match) => {
+    sections[a_match[1]] = new BibParse(a_match[2]).parse();
+  })
+  return sections
 }
+
 
 </script>
 
-<style lang="scss" >
+<style lang="scss">
 
 .drop-active .drop-zone {
   background: green;
